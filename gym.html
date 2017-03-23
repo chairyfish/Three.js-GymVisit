@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>体育馆</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				background:#FFF;
+				color: #eee;
+				padding:0;
+				margin:0;
+				font-weight:bold;
+				overflow:hidden;
+
+				font-family:Monospace;
+				font-size:13px;
+				text-align:center;
+			}
+
+			#info {
+				position: absolute;
+				top: 0px; width: 100%;
+				padding: 5px;
+				z-index:100;
+			}
+
+			a {
+
+				color: #0080ff;
+			}
+
+			b { color:orange }
+		</style>
+
+		<script src="build/three.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r79/three.min.js"></script>
+		<script src="js/loaders/ColladaLoader.js"></script>
+		<script src="js/controls/FlyControls.js"></script>
+
+		<script src="js/shaders/CopyShader.js"></script>
+		<script src="js/shaders/FilmShader.js"></script>
+
+		<script src="js/postprocessing/EffectComposer.js"></script>
+		<script src="js/postprocessing/ShaderPass.js"></script>
+		<script src="js/postprocessing/MaskPass.js"></script>
+		<script src="js/postprocessing/RenderPass.js"></script>
+		<script src="js/postprocessing/FilmPass.js"></script>
+
+		<script src="js/Detector.js"></script>
+		<script src="js/libs/stats.min.js"></script>
+
+	</head>
+
+	<body>
+
+		<div id="info">地大体育馆游览<br/><br/>
+		<b>W|A|S|D</b> 移动, <b>R|F</b> 上下<br/>
+		</div>
+
+		<script>
+
+			if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+
+			
+		
+			var rotationSpeed = 0.02;
+
+	
+
+			var MARGIN = 0;
+			var SCREEN_HEIGHT = window.innerHeight - MARGIN * 2;
+			var SCREEN_WIDTH  = window.innerWidth;
+
+			var container, stats;
+			var camera, controls, scene, renderer;				//定义相机，控制，场景，渲染
+			var dirLight, pointLight, ambientLight;
+
+			var floor;			//定义体育馆，地板
+
+			var textureLoader = new THREE.TextureLoader();
+
+			var clock = new THREE.Clock();
+
+			var model= new THREE.Vector3();
+
+			init();
+
+			
+
+			function init() {
+
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				camera = new THREE.PerspectiveCamera( 45, SCREEN_WIDTH / SCREEN_HEIGHT, 1, 10000 );		//新建相机
+				camera.position.z = 800;
+				camera.position.y=20;
+
+				scene = new THREE.Scene();																//新建场景
+//				scene.fog = new THREE.FogExp2( 0x000000, 0.00000025 );
+				scene.background = new THREE.Color( 0xB0C4DE );
+//				var renderer = new THREE.WebGLRenderer({ alpha: true });
+//				scene.add( controls.getObject() );
+
+				controls = new THREE.FlyControls( camera );												//新建控制
+
+				controls.movementSpeed = 1000;
+				controls.domElement = container;
+				controls.rollSpeed = Math.PI / 24;
+				controls.autoForward = false;
+				controls.dragToLook = false;
+
+
+				var ambientLight=new THREE.AmbientLight(0xeeeeee);
+				ambientLight.castShadow = true;
+				ambientLight.shadowDarkness = 0.2;
+				scene.add(ambientLight);
+				// dirLight = new THREE.DirectionalLight( 0xffffff );										//新建光照
+				// dirLight.position.set( 0, 1, 0 ).normalize();
+				// scene.add( dirLight );
+				// var pointLight = new THREE.PointLight( 0xff0000, 1, 500 );
+    //     		pointLight.position.set(0,0,-200);
+
+				
+
+
+				//加载体育馆模型
+				
+				var loader = new THREE.ColladaLoader();
+				loader.options.convertUpAxis = true;
+				loader.load('resource/体育馆.dae', function (collada) {
+					model = collada.scene;
+					model.traverse(function (child) {
+
+					if (child instanceof THREE.SkinnedMesh) {
+
+						var animation = new THREE.Animation(child, child.geometry.animation);
+						animation.play();
+
+					}
+
+					});
+					model.scale.x = model.scale.y = model.scale.z = 2;
+					model.position.set(-500, 0, 500);
+					model.rotation.y=0;
+					model.updateMatrix();
+					scene.add(model);
+
+					animate();
+				});
+					    
+
+
+		        // floor
+
+		        var floorGeometry = new THREE.PlaneGeometry( 4000, 4000, 100, 100 );
+		        floor=new THREE.Mesh(floorGeometry, new THREE.MeshLambertMaterial({color:0x8cb752}));
+		        
+				floor.position.y = 0;
+				floor.rotation.x = - Math.PI / 2;
+				floor.receiveShadow = true;
+				this.scene.add(floor);
+		        
+
+				//新建渲染
+				renderer = new THREE.WebGLRenderer();										
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+				renderer.sortObjects = false;
+
+				container.appendChild( renderer.domElement );
+
+				stats = new Stats();
+				container.appendChild( stats.dom );
+
+				window.addEventListener( 'resize', onWindowResize, true );
+
+				// postprocessing
+
+				var renderModel = new THREE.RenderPass( scene, camera );
+				var effectFilm = new THREE.FilmPass( 0, 0.75, 2048, false );
+
+				effectFilm.renderToScreen = true;
+
+				composer = new THREE.EffectComposer( renderer );
+
+				composer.addPass( renderModel );
+				composer.addPass( effectFilm );
+
+			}
+
+			function onWindowResize( event ) {
+
+				SCREEN_HEIGHT = window.innerHeight;
+				SCREEN_WIDTH  = window.innerWidth;
+
+				renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+
+				camera.aspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+				camera.updateProjectionMatrix();
+
+				composer.reset();
+
+			}
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+
+				render();
+				stats.update();
+
+			}
+
+			function render() {
+
+				// rotate the planet and clouds
+
+				var delta = clock.getDelta();
+
+				model.rotation.y+= rotationSpeed * delta;
+
+				// slow down as we approach the surface
+
+				
+
+				controls.movementSpeed = 200;
+				controls.update( delta );
+
+				composer.render( delta );
+
+
+				if ( camera.position.y < 10 ) { camera.position.y = 10;}
+				if( camera.position.y > 200 ){ camera.position.x=200; }
+				if( camera.position.x > 800 ){ camera.position.x=800; }
+				if( camera.position.x < -800 ){ camera.position.x=-800; }
+				if( camera.position.z > 800 ){ camera.position.z=800; }
+				if( camera.position.z < -800 ){ camera.position.z=-800; }
+				
+				camera.rotation.z=0;
+
+
+			}
+
+		
+
+		
+
+
+		</script>
+	</body>
+</html>
